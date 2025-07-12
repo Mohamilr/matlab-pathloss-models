@@ -1,0 +1,403 @@
+FSPL MODEL
+
+
+CI MODEL
+% Load data
+data = readtable('100MHz_10m_VV.csv');
+d_km = data.Distance_To_Server_1_km;
+PL_measured = data.Path_Loss_dB;
+valid = d_km > 0;
+d_km = d_km(valid);
+d_m = d_km * 1000;
+PL_measured = PL_measured(valid);
+
+% Constants
+f_GHz = 24;
+d0_m = 1;
+
+% FSPL at d0 = 1m using 92.45-style
+FSPL_d0 = 92.45 + 20*log10(d0_m / 1000) + 20*log10(f_GHz);  % Note: d0 in km
+FSPL_vec = repmat(FSPL_d0, size(d_m));
+
+% Compute n using d in meters
+log_dist_ratio = log10(d_m / d0_m);
+numerator = sum(PL_measured - FSPL_d0);
+denominator = sum(10 * log_dist_ratio);
+n = numerator / denominator;
+n_vec = repmat(n, size(d_m));
+
+% Predicted path loss (CI)
+PL_CI = FSPL_vec + 10 * n * log_dist_ratio;
+
+% Shadow fading term X ~ N(0, σ^2)
+X_sigma = PL_measured - PL_CI;
+X_mean = mean(X_sigma);
+X_std = std(X_sigma);
+
+% Table with output
+T = table(d_m, FSPL_vec, n_vec, PL_CI, X_sigma, ...
+    'VariableNames', {'Distance_m', 'FSPL_d0', 'n', 'PL_CI', 'X_sigma'});
+
+% Append mean row
+mean_row = T(1,:);
+mean_row{:,:} = [mean(d_m); FSPL_d0; n; mean(PL_CI); mean(X_sigma)];
+T = [T; mean_row];
+T.Properties.RowNames = [cellstr(string(1:height(T)-1)); {'Mean'}];
+
+% Display
+disp(['Estimated path loss exponent (n): ', num2str(n)]);
+disp(['Shadow fading std (σ): ', num2str(X_std)]);
+disp(T);
+
+% Optional: write to Excel
+writetable(T, 'CI_Model_with_ShadowFading.xlsx', 'WriteRowNames', true);
+
+
+
+
+
+FI MODEL
+% Load data
+data = readtable('100MHz_10m_VV.csv');
+d_km = data.Distance_To_Server_1_km;
+PL_measured = data.Path_Loss_dB;
+valid = d_km > 0;
+d_km = d_km(valid);
+d_m = d_km * 1000;
+PL_measured = PL_measured(valid);
+
+% Convert to log10(d) for regression
+x = log10(d_m);  % Predictor
+y = PL_measured; % Response
+
+% Linear regression: y = alpha + 10*beta*log10(d)
+A = [ones(size(x)), 10 * x];  % [1, 10*log10(d)]
+params = A \ y;               % Least squares solution
+
+alpha = params(1);
+beta = params(2);
+
+% Compute modeled path loss
+PL_FI = alpha + 10 * beta * x;
+
+% Shadow fading term (X_sigma)
+X_sigma = y - PL_FI;
+X_mean = mean(X_sigma);
+X_std = std(X_sigma);
+beta_vec = repmat(beta, size(d_m));
+
+% Output table
+T = table(d_m, repmat(alpha, size(d_m)), beta_vec, PL_FI, X_sigma, ...
+    'VariableNames', {'Distance_m', 'Alpha', 'Beta', 'PL_FI', 'X_sigma'});
+
+% Append mean row
+mean_row = T(1,:);
+mean_row{:,:} = [mean(d_m); alpha; beta; mean(PL_FI); mean(X_sigma)];
+T = [T; mean_row];
+T.Properties.RowNames = [cellstr(string(1:height(T)-1)); {'Mean'}];
+
+% Display
+disp(['Estimated Alpha: ', num2str(alpha)]);
+disp(['Estimated Beta: ', num2str(beta)]);
+disp(['Shadow fading std (σ): ', num2str(X_std)]);
+disp(T);
+
+% Optional export
+writetable(T, 'FI_Model_with_ShadowFading.xlsx', 'WriteRowNames', true);
+
+
+
+ABG MODEL
+% Load data
+data = readtable('100MHz_10m_VV.csv');
+d_km = data.Distance_To_Server_1_km;
+PL_measured = data.Path_Loss_dB;
+
+% Clean data: remove 0 distances
+valid = d_km > 0;
+d_km = d_km(valid);
+d_m = d_km * 1000;
+PL_measured = PL_measured(valid);
+
+% Constants
+f_GHz = 24;
+log_d = log10(d_m);         % log10 of distance (meters)
+log_f = log10(f_GHz) * ones(size(d_m));  % same for all rows
+
+% Design matrix: [log10(d), 1, log10(f)]
+A = [10 * log_d, ones(size(d_m)), 10 * log_f];
+
+% Solve for [alpha, beta, gamma] using least squares
+params = A \ PL_measured;
+alpha = params(1);
+beta  = params(2);
+gamma = params(3);
+
+% Compute predicted PL using ABG
+PL_ABG = A * params;
+
+% Shadow fading term
+X_sigma = PL_measured - PL_ABG;
+X_std = std(X_sigma);
+
+% Create output table
+alpha_vec = repmat(alpha, size(d_m));
+beta_vec  = repmat(beta, size(d_m));
+gamma_vec = repmat(gamma, size(d_m));
+
+T = table(d_m, alpha_vec, beta_vec, gamma_vec, PL_ABG, X_sigma, ...
+    'VariableNames', {'Distance_m', 'Alpha', 'Beta', 'Gamma', 'PL_ABG', 'X_sigma'});
+
+% Append mean row
+mean_row = T(1,:);
+mean_row{:,:} = [mean(d_m); alpha; beta; gamma; mean(PL_ABG); mean(X_sigma)];
+T = [T; mean_row];
+
+% Set row names
+T.Properties.RowNames = [cellstr(string(1:height(T)-1)); {'Mean'}];
+
+% Display results
+disp(['Estimated Alpha: ', num2str(alpha)]);
+disp(['Estimated Beta: ', num2str(beta)]);
+disp(['Estimated Gamma: ', num2str(gamma)]);
+disp(['Shadow Fading Std (σ): ', num2str(X_std)]);
+disp(T);
+
+% Optional: write to Excel
+writetable(T, 'ABG_Model_with_ShadowFading.xlsx', 'WriteRowNames', true);
+
+
+
+
+ECC-33 model for the parameters
+% Load data from CSV
+data = readtable('100MHz_10m_VV.csv');
+
+% Extract distance (km) and filter out zero values
+d_km = data.Distance_To_Server_1_km;
+valid = d_km > 0;
+d_km = d_km(valid);
+
+% Constants
+f_GHz = 24;                   % Frequency in GHz
+f_MHz = f_GHz * 1000;         % Convert to MHz
+hb = 10;                      % Transmitter height (m)
+hr = 1.5;                     % Receiver height (m)
+
+% ECC-33 calculations
+A_fs = 92.4 + 20*log10(d_km) + 20*log10(f_MHz);                                 % Free-space attenuation
+A_bm = 20.41 + 9.83*log10(d_km) + 7.894*log10(f_MHz) + 9.56*(log10(f_MHz)).^2;   % Basic median path loss
+G_b = log10(hb / 200) .* (13.958 + 5.8*(log10(d_km)).^2);                        % Base station gain
+
+% G_r for large city
+G_r = 3.2 * (log10(11.75 * hr)).^2 - 4.97;
+
+% Final ECC-33 path loss
+PL_ECC33 = A_fs + A_bm - G_b - G_r;
+
+% Create main table
+T = table(d_km, A_fs, A_bm, G_b, repmat(G_r, size(d_km)), PL_ECC33, ...
+    'VariableNames', {'Distance_km', 'A_fs', 'A_bm', 'G_b', 'G_r', 'PL_ECC33'});
+
+% Compute mean values
+mean_vals = varfun(@mean, T, 'InputVariables', T.Properties.VariableNames);
+
+% Create new row for mean values
+mean_row = T(1,:);  % initialize from existing row to preserve types
+mean_row{:,:} = [mean(T.Distance_km); mean(A_fs); mean(A_bm); mean(G_b); G_r; mean(PL_ECC33)];
+
+% Append mean row
+T = [T; mean_row];
+
+% Rename the final row (optional – for display only)
+T.Properties.RowNames = [cellstr(string(1:height(T)-1)); {'Mean'}];
+
+% Display the table with means
+disp(T);
+
+% Optional: write to Excel
+writetable(T, 'ECC33_Output_with_Mean.xlsx', 'WriteRowNames', true);
+
+
+
+SUI MODEL parameters for Urban environment.
+% Load data
+data = readtable('100MHz_10m_VV.csv');
+d_km = data.Distance_To_Server_1_km;
+valid = d_km > 0;
+d_km = d_km(valid);
+d_m = d_km * 1000;     % Convert to meters
+
+% Constants
+f = 24000;             % Frequency in MHz
+hb = 10;               % TX height in meters
+hr = 1.5;              % RX height in meters
+d0 = 1;              % Reference distance in meters
+c = 3e8;               % Speed of light in m/s
+lambda = c / (f * 1e6); % Wavelength in meters
+
+% Terrain A (Urban)
+a = 4.6;
+b = 0.0075;
+c1 = 12.6;
+
+% Path loss exponent gamma
+gamma = a - b * hb + c1 / hb;
+gamma_vec = repmat(gamma, size(d_m));
+
+% Free-space path loss at reference distance A
+A = 20 * log10((4 * pi * d0) / lambda);
+A_vec = repmat(A, size(d_m));
+
+% Frequency correction factor
+X_f = 6 * log10(f / 2000);
+X_f_vec = repmat(X_f, size(d_m));
+
+% Height correction factor (Terrain A: urban)
+X_h = -10.8 * log10(hr / 2);
+X_h_vec = repmat(X_h, size(d_m));
+
+% Shadowing factor (Urban typical)
+S = 8.2;
+S_vec = repmat(S, size(d_m));
+
+% SUI Path loss calculation
+PL_sui = A_vec + 10 * gamma_vec .* log10(d_m / d0) + X_f_vec + X_h_vec + S_vec;
+
+% Create table
+T = table(d_km, A_vec, gamma_vec, X_f_vec, X_h_vec, S_vec, PL_sui, ...
+    'VariableNames', {'Distance_km', 'A', 'Gamma', 'X_f', 'X_h', 'S', 'PL_SUI'});
+
+% Compute mean values and append
+mean_row = T(1, :);  % copy structure
+mean_row{:,:} = [mean(d_km); A; gamma; X_f; X_h; S; mean(PL_sui)];
+T = [T; mean_row];
+
+% Rename final row
+T.Properties.RowNames = [cellstr(string(1:height(T)-1)); {'Mean'}];
+
+% Display final table
+disp(T);
+
+% Optional: write to Excel
+writetable(T, 'SUI_Urban_Output.xlsx', 'WriteRowNames', true);
+
+
+
+
+///////////////////////////////// SECOND CODE TO CONSIDER FOR SUI
+% Load data
+data = readtable('100MHz_10m_VV.csv');
+d_km = data.Distance_To_Server_1_km;
+PL_measured = data.Path_Loss_dB;  % Ensure this is the correct column name!
+valid = d_km > 0;
+d_km = d_km(valid);
+PL_measured = PL_measured(valid);
+d_m = d_km * 1000;
+
+% Constants
+f = 24000;             % MHz
+hb = 10;
+hr = 1.5;
+d0 = 1;                % Reference distance (1 m)
+
+% Terrain A parameters
+a = 4.6;
+b = 0.0075;
+c1 = 12.6;
+
+% Calculate gamma
+gamma = a - b * hb + c1 / hb;
+gamma_vec = repmat(gamma, size(d_m));
+
+% Free-space path loss at d0
+lambda = 3e8 / (f * 1e6);
+A = 20 * log10((4 * pi * d0) / lambda);
+A_vec = repmat(A, size(d_m));
+
+% Frequency and height correction
+X_f = 6 * log10(f / 2000);
+X_h = -10.8 * log10(hr / 2);
+X_f_vec = repmat(X_f, size(d_m));
+X_h_vec = repmat(X_h, size(d_m));
+
+% Compute predicted PL without shadowing
+PL_no_shadow = A_vec + 10 * gamma_vec .* log10(d_m / d0) + X_f_vec + X_h_vec;
+
+% Compute shadow fading from measurement
+X = PL_measured - PL_no_shadow;
+
+% Compute alpha for each point using:
+% alpha = X - (0.65 * log10(f)^2 - 1.3 * log10(f))
+logf = log10(f);
+alpha_i = X - (0.65 * logf^2 - 1.3 * logf);
+alpha = mean(alpha_i);  % final estimated alpha from empirical data
+
+% Now compute S using calculated alpha
+S_vec = 0.65 * logf^2 - 1.3 * logf + alpha;
+
+% Final SUI path loss with calculated shadow fading
+PL_sui = PL_no_shadow + S_vec;
+
+% Construct output table
+T = table(d_km, A_vec, gamma_vec, X_f_vec, X_h_vec, S_vec, PL_sui, ...
+    'VariableNames', {'Distance_km', 'A', 'Gamma', 'X_f', 'X_h', 'S', 'PL_SUI'});
+
+% Append mean row
+mean_row = T(1,:);
+mean_row{:,:} = [mean(d_km); A; gamma; X_f; X_h; mean(S_vec); mean(PL_sui)];
+T = [T; mean_row];
+T.Properties.RowNames = [cellstr(string(1:height(T)-1)); {'Mean'}];
+
+% Display estimated alpha and table
+disp(['Estimated alpha (mean): ', num2str(alpha)]);
+disp(T);
+
+writetable(T, 'SUI_Urban_Output.xlsx', 'WriteRowNames', true);
+
+
+
+
+
+3GPP TR 38.901 (UMa NLOS)
+% Load Excel data
+data = readtable('100MHz_10m_VV.csv');
+d_km = data.Distance_To_Server_1_km;
+valid = d_km > 0;
+d_km = d_km(valid);
+d_m = d_km * 1000;
+
+% Parameters
+f_GHz = 24;       % Frequency in GHz
+h_BS = 10;        % Base station height (TX), meters
+h_UT = 1.5;       % User terminal (RX) height
+
+% LOS model (used inside max)
+PL_LOS = 28 + 22*log10(d_m) + 20*log10(f_GHz);
+PL_LOS_vec = PL_LOS;
+
+% NLOS model
+PL_NLOS = 13.54 + 39.08 * log10(d_m) + 20 * log10(f_GHz) - 0.6 * (h_BS - 1.5);
+PL_NLOS_vec = PL_NLOS;
+
+% Final UMa NLOS path loss: take max(LOS, NLOS)
+PL_final = max(PL_LOS_vec, PL_NLOS_vec);
+
+% Create output table
+T = table(d_km, d_m, PL_LOS_vec, PL_NLOS_vec, PL_final, ...
+    'VariableNames', {'Distance_km', 'Distance_m', 'PL_LOS', 'PL_NLOS', 'PL_UMa_NLOS'});
+
+% Compute and append mean row
+mean_row = T(1, :);
+mean_row{:,:} = [mean(d_km); mean(d_m); mean(PL_LOS_vec); mean(PL_NLOS_vec); mean(PL_final)];
+T = [T; mean_row];
+T.Properties.RowNames = [cellstr(string(1:height(T)-1)); {'Mean'}];
+
+% Display result
+disp(T);
+
+% Optional: export
+writetable(T, '3GPP_UMa_NLOS_Output.xlsx', 'WriteRowNames', true);
+
+
+
