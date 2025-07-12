@@ -12,7 +12,7 @@ PL_measured = PL_measured(valid);
 
 % Constants
 f = 24000;  % MHz
-hb = 10;    % Tx height in meters
+hb = 10;    % (Varies) Tx height in meters
 hr = 1.5;   % Rx height
 d0 = 1;     % Reference distance in meters
 
