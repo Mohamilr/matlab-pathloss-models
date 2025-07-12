@@ -1,12 +1,16 @@
 % Load data
 data = readtable('100MHz_10m_VV.csv');
+
 d_km = data.Distance_To_Server_1_km;
-EIRP = 63;  % EIRP in dBm
-RSSI = data.("Server 1 Result (dbmW)");
-PL_measured = EIRP - RSSI;
+
 valid = d_km > 0;
 d_km = d_km(valid);
 d_m = d_km * 1000;
+
+EIRP = 63;  % EIRP in dBm
+RSSI = data.("Server 1 Result (dbmW)");
+PL_measured = EIRP - RSSI;
+
 PL_measured = PL_measured(valid);
 
 % Constants
