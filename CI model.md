@@ -1,14 +1,14 @@
 % Load data
 data = readtable('100MHz_10m_VV.csv');
 
-d_km = data.Distance_To_Server_1_km;
+d_km = data{:, 'DistanceToServer1_km_'};
 
 valid = d_km > 0;
 d_km = d_km(valid);
 d_m = d_km * 1000;
 
 EIRP = 63;  % EIRP in dBm
-RSSI = data.("Server 1 Result (dbmW)");
+RSSI = data{:,'Server1Result_dBmW_'};
 PL_measured = EIRP - RSSI;
 
 PL_measured = PL_measured(valid);
@@ -40,11 +40,10 @@ X_std = std(X_sigma);
 T = table(d_m, FSPL_vec, n_vec, PL_CI, X_sigma, ...
     'VariableNames', {'Distance_m', 'FSPL_d0', 'n', 'PL_CI', 'X_sigma'});
 
-% Append mean row
-mean_row = T(1,:);
-mean_row{:,:} = [mean(d_m); FSPL_d0; n; mean(PL_CI); mean(X_sigma)];
+% Append a row of means
+mean_row = array2table([mean(d_m), mean(FSPL_vec), mean(n_vec), mean(PL_CI), mean(X_sigma)], ...
+    'VariableNames', {'Distance_m', 'FSPL_d0', 'n', 'PL_CI', 'X_sigma'});
 T = [T; mean_row];
-T.Properties.RowNames = [cellstr(string(1:height(T)-1)); {'Mean'}];
 
 % Display
 disp(['Estimated path loss exponent (n): ', num2str(n)]);
@@ -52,4 +51,4 @@ disp(['Shadow fading std (σ): ', num2str(X_std)]);
 disp(T);
 
 % Optional: write to Excel
-writetable(T, 'CI_Model_with_ShadowFading.xlsx', 'WriteRowNames', true);
+writetable(T, 'CI_Model_with_ShadowFading.xlsx');
