@@ -13,7 +13,7 @@ PL_measured = EIRP - RSSI;
 % Constants
 f_GHz = 24;                  % Frequency in GHz
 f_MHz = f_GHz * 1000;        % Frequency in MHz
-hb = 10;                     % Base station height in meters
+hb = 10;                     % (Varies) Base station height in meters
 hr = 1.5;                    % Mobile station height in meters
 
 log_d = log10(d_km);

@@ -13,7 +13,7 @@ PL_measured = EIRP - RSSI;
 
 % Parameters
 f_GHz = 24;       % Frequency in GHz
-h_BS = 10;        % Base station height (TX), meters
+h_BS = 10;        % (Varies) Base station height (TX), meters
 h_UT = 1.5;       % User terminal (RX) height
 
 % LOS model (used inside max)
@@ -55,8 +55,8 @@ Xstd_vec = repmat(X_std, n, 1);
 % Create full output table
 T = table(d_km, d_m, PL_measured, PL_LOS_vec, PL_NLOS_vec, PL_UMa_NLOS, X_sigma, ...
     RMSE_vec, MAE_vec, MPE_vec, Bias_vec, SDE_vec, R2_vec, Xstd_vec, ...
-    'VariableNames', {'Distance_km', 'Distance_m', 'Measured_PL', 'PL_LOS', 'PL_NLOS', 'PL_UMa_NLOS', 'X_sigma', ...
-                      'RMSE', 'MAE', 'MPE', 'Bias', 'SDE', 'R_squared', 'X_std'});
+    'VariableNames', {'Distance_km', 'Distance_m', 'Measured_PL', '3GPP_PL_LOS', '3GPP_PL_NLOS', '3GPP_PL_UMa_NLOS', '3GPP_X_sigma', ...
+                      '3GPP_RMSE', '3GPP_MAE', '3GPP_MPE', '3GPP_Bias', '3GPP_SDE', '3GPP_R_squared', '3GPP_X_std'});
 
 % --- Append Mean Row ---
 mean_values = [mean(d_km), mean(d_m), mean(PL_measured), mean(PL_LOS_vec), ...
@@ -64,8 +64,8 @@ mean_values = [mean(d_km), mean(d_m), mean(PL_measured), mean(PL_LOS_vec), ...
                RMSE, MAE, MPE, Bias, SDE, R_squared, X_std];
 
 mean_row = array2table(mean_values, ...
-   'VariableNames', {'Distance_km', 'Distance_m', 'Measured_PL', 'PL_LOS', 'PL_NLOS', 'PL_UMa_NLOS', 'X_sigma', ...
-                     'RMSE', 'MAE', 'MPE', 'Bias', 'SDE', 'R_squared', 'X_std'});
+    'VariableNames', {'Distance_km', 'Distance_m', 'Measured_PL', '3GPP_PL_LOS', '3GPP_PL_NLOS', '3GPP_PL_UMa_NLOS', '3GPP_X_sigma', ...
+                      '3GPP_RMSE', '3GPP_MAE', '3GPP_MPE', '3GPP_Bias', '3GPP_SDE', '3GPP_R_squared', '3GPP_X_std'});
 
 T = [T; mean_row];
 
