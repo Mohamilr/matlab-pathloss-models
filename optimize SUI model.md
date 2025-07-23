@@ -6,7 +6,7 @@ d_m = data.Distance_m;
               % dBm
 PL_measured = data.Measured_PL;        % Measured path loss
 f = 24000;                        % MHz
-hb = 25;                          % Base station height (m)
+hb = 10;                          % Base station height (m)
 hr = 1.5;                         % User terminal height (m)
 d0 = 1;                           % Reference distance (m)
 lambda = 3e8 / (f * 1e6);         % Wavelength (m)
